@@ -1,0 +1,859 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#F3F6F5">
+<title>生活記録表</title>
+<style>
+/* Layout: 3 calm steps (はじめに → 記録する → 確認して送る); one task per screen; fixed bottom bar always shows the next action */
+:root{
+  --bg:#F3F6F5; --paper:#FFFFFF; --ink:#2E3D45; --muted:#5E6E76; --line:#D3DCDA; --line-strong:#8FA0A6;
+  --accent:#3C7A89; --accent-ink:#FFFFFF; --accent-soft:#E4F0F1; --ok:#3F8A5C; --ok-soft:#E5F3EA; --warm:#FFF7E8; --star:#C0392B;
+  --font:"BIZ UDPGothic","BIZ UDPゴシック","Hiragino Sans","Hiragino Kaku Gothic ProN","Meiryo","Noto Sans JP","Noto Sans CJK JP",sans-serif;
+  --barH:76px;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:18px;line-height:1.7;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-block:0 calc(var(--barH) + 70px + env(safe-area-inset-bottom,0px))}
+.wrap{max-width:820px;margin:0 auto;display:grid;gap:16px}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+h1{font-size:1.25rem;margin:0}
+h2{font-size:1.3rem;margin:0}
+p{margin:0}
+.muted{color:var(--muted)}
+.small{font-size:.9rem}
+
+/* top: title + steps */
+.top{position:sticky;top:0;z-index:10;background:var(--bg);padding-top:max(10px,env(safe-area-inset-top,0px));padding-bottom:8px;margin:0 calc(-1 * max(16px,env(safe-area-inset-left,0px))) 0;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-bottom:1px solid var(--line)}
+.top-in{max-width:820px;margin:0 auto;display:grid;gap:6px}
+.top-row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.saved{font-size:.85rem;color:var(--ok);white-space:nowrap}
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;list-style:none;margin:0;padding:0}
+.steps button{font:inherit;width:100%;border:none;background:#E3EAE8;color:var(--muted);border-radius:999px;padding:6px 4px;font-size:.92rem;font-weight:700;cursor:pointer;min-height:40px}
+.steps button[aria-current="step"]{background:var(--accent);color:var(--accent-ink)}
+.steps button.done{background:var(--ok-soft);color:var(--ok)}
+
+.card{background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:12px;min-width:0}
+.card.soft{background:var(--accent-soft);border-color:#C9DEE1}
+.card.warm{background:var(--warm);border-color:#F0DFC0}
+label.f{display:grid;gap:6px;font-weight:700}
+input[type=text],input[type=date],textarea{font:inherit;font-size:18px;padding:12px 14px;border:1.5px solid var(--line-strong);border-radius:10px;background:#fff;color:var(--ink);min-height:52px;width:100%}
+textarea{min-height:96px;resize:vertical}
+ul.plain{margin:0;padding-left:1.2em;display:grid;gap:6px}
+.btn{font:inherit;font-weight:700;display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1.5px solid var(--line-strong);background:#fff;color:var(--ink);border-radius:12px;padding:10px 16px;min-height:52px;cursor:pointer;text-decoration:none;text-align:center}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.quiet{border-color:var(--line)}
+.btn:disabled{opacity:.4;cursor:default}
+.btns{display:flex;flex-wrap:wrap;gap:10px}
+.btns.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+
+/* step 2 */
+.daystrip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.day{font:inherit;border:1.5px solid var(--line);background:#fff;border-radius:12px;padding:6px 2px;cursor:pointer;display:grid;justify-items:center;line-height:1.2;min-height:62px;color:var(--ink)}
+.day .d{font-weight:700;font-size:1.15rem}
+.day .w{font-size:.85rem;color:var(--muted)}
+.day .m{font-size:.8rem;height:1em;color:var(--ok);font-weight:700}
+.day[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset;background:var(--accent-soft)}
+.dayttl{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.dayttl b{font-size:1.35rem}
+.palette{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.tool{font:inherit;display:grid;justify-items:center;gap:0;border:2px solid var(--line);border-radius:12px;background:#fff;padding:4px 2px;min-height:60px;cursor:pointer;color:var(--ink)}
+.tool .sw{display:grid;place-items:center;width:34px;height:34px;border-radius:8px;font-weight:700;font-size:19px}
+.tool .nm{font-size:.78rem;line-height:1.2}
+.tool[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 2px var(--ink) inset}
+.hours{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:5px;touch-action:none;user-select:none;-webkit-user-select:none}
+@media (min-width:700px){.hours{grid-template-columns:repeat(12,minmax(0,1fr))}.palette{grid-template-columns:repeat(10,minmax(0,1fr))}}
+.cell{border:1.5px solid var(--line-strong);border-radius:8px;background:#fff;min-height:56px;display:grid;grid-template-rows:auto 1fr;padding:2px 4px;cursor:pointer;position:relative}
+.cell .h{font-size:.8rem;color:var(--muted);line-height:1.1}
+.cell.night{background-image:linear-gradient(#EDF1F0,#EDF1F0);background-size:100% 15px;background-repeat:no-repeat}
+.cell .v{display:grid;place-items:center;font-size:21px;font-weight:700}
+.cell .s{position:absolute;right:3px;top:-1px;color:var(--star);font-size:17px;font-weight:700}
+.seg{display:grid;gap:6px}
+.seg.mood{grid-template-columns:repeat(5,minmax(0,1fr))}
+.seg.act{grid-template-columns:repeat(7,minmax(0,1fr))}
+.seg button{font:inherit;font-weight:700;min-height:56px;border:1.5px solid var(--line-strong);border-radius:10px;background:#fff;cursor:pointer;color:var(--ink);display:grid;place-items:center;line-height:1.15;padding:4px 2px}
+.seg button small{font-weight:400;font-size:.7rem;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.seg button[aria-pressed="true"] small{color:#fff}
+.acthint{min-height:1.6em;font-size:.92rem;color:var(--muted)}
+details.help summary{cursor:pointer;font-weight:700;color:var(--accent)}
+.legend{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:6px 14px;margin-top:8px;font-size:.92rem}
+.legend div{display:flex;gap:8px;align-items:center}
+.chip{display:inline-grid;place-items:center;width:1.9em;height:1.9em;border:1px solid var(--line-strong);border-radius:6px;font-weight:700;flex:none}
+
+/* step 3 */
+.ov-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+table.ov{border-collapse:collapse;font-size:.82rem;min-width:760px;width:100%}
+.ov th,.ov td{border:1px solid var(--line);text-align:center;padding:0;height:30px}
+.ov th{background:#EEF3F2}
+.ov td.dt{white-space:nowrap;padding:0 6px;font-weight:700;background:#fff;position:sticky;left:0;cursor:pointer}
+.ov td.hc{width:24px;font-weight:700;white-space:nowrap;position:relative}
+.ov td.hc i{position:absolute;right:0;top:-3px;font-style:normal;font-size:.75em;color:var(--star)}
+.ov td.cm{text-align:left;padding:0 6px;max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prog{display:flex;align-items:center;gap:10px}
+.prog .bar{flex:1;height:10px;border-radius:5px;background:#E3EAE8;overflow:hidden}
+.prog .bar i{display:block;height:100%;background:var(--ok)}
+.way{border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:10px}
+.way h3{margin:0;font-size:1.08rem}
+.cprow{display:grid;grid-template-columns:3em minmax(0,1fr);gap:6px 8px;align-items:start}
+.cprow span{font-weight:700;padding-top:12px}
+.cprow .btn{grid-column:2;justify-self:start;min-height:44px}
+.cprow textarea{min-height:160px;font-size:15px}
+.cprow input{font-size:16px}
+.meds{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px}
+.med{border:1px solid var(--line);border-radius:10px;padding:6px;display:grid;gap:4px;background:#fff}
+.med img{width:100%;height:110px;object-fit:cover;border-radius:6px;background:#EEF3F2}
+.med .pdf{height:110px;display:grid;place-items:center;border-radius:6px;background:#EEF3F2;font-weight:700;color:var(--accent);font-size:1.2rem}
+.med .nm{font-size:.75rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.med button{font:inherit;font-size:.85rem;min-height:36px;border:1px solid var(--line-strong);border-radius:8px;background:#fff;cursor:pointer;color:var(--ink)}
+.choices{display:grid;gap:10px}
+.choice.sub{min-height:64px;padding:10px 12px}
+.choice.sub .ic{width:38px;height:38px;font-size:19px}
+ol.wsteps{margin:0;padding-left:1.6em;display:grid;gap:12px}
+ol.wsteps li::marker{font-weight:700;color:var(--accent)}
+ol.wsteps li>b{display:block}
+ol.wsteps small{display:block;font-size:.88rem;color:var(--muted);margin:2px 0 6px}
+ol.wsteps small.ok{color:var(--ok);font-weight:700}
+ol.wsteps .btns{margin-top:4px}
+.choice{font:inherit;display:flex;align-items:center;gap:14px;text-align:left;border:2px solid var(--line-strong);background:#fff;color:var(--ink);border-radius:14px;padding:12px 14px;min-height:72px;cursor:pointer}
+.choice b{display:block;font-size:1.08rem}
+.choice small{display:block;color:var(--muted);font-size:.85rem;line-height:1.4}
+.choice .ic{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--accent-soft);color:var(--accent);font-size:22px;font-weight:700}
+.choice .ic.line{background:#E6F6EA;color:#2E8B47}
+.choice[aria-expanded="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent) inset}
+.panel{border-radius:12px;background:var(--accent-soft);padding:14px;display:grid;gap:10px}
+.toline{font-size:.95rem;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn.mini{min-height:36px;padding:4px 10px;font-size:.85rem}
+.btn small{font-weight:400;font-size:.8rem}
+.danger{color:#9B3D33;border-color:#C9A39D}
+.confirm{border:1.5px solid #C9A39D;border-radius:10px;padding:12px;background:#FBF1EF;display:grid;gap:8px}
+
+/* bottom bar + scroll cue + toast */
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:rgba(255,255,255,.97);border-top:1px solid var(--line);padding:10px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));box-shadow:0 -4px 14px rgba(46,61,69,.08)}
+.bar-in{max-width:820px;margin:0 auto;display:flex;gap:10px}
+.bar .btn{flex:1;min-height:56px;font-size:1.02rem}
+.bar .btn.back{flex:0 0 auto;min-width:96px}
+.cue{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--barH) + 14px + env(safe-area-inset-bottom,0px));z-index:14;font:inherit;font-weight:700;font-size:.95rem;background:var(--ink);color:#fff;border:none;border-radius:999px;padding:9px 18px;box-shadow:0 4px 14px rgba(0,0,0,.2);cursor:pointer;white-space:nowrap}
+@media (prefers-reduced-motion:no-preference){.cue{animation:bob 1.6s ease-in-out infinite}@keyframes bob{0%,100%{transform:translate(-50%,0)}50%{transform:translate(-50%,4px)}}}
+.toast{position:fixed;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));top:calc(env(safe-area-inset-top,0px) + 96px);z-index:20;max-width:720px;margin:0 auto;background:var(--ink);color:#fff;font-weight:700;padding:12px 16px;border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.toast:empty{display:none}
+@media (max-width:420px){body{font-size:17px}.card{padding:14px}.tool .nm{font-size:.72rem}.seg button small{font-size:.62rem}}
+@media print{
+  .top,.bar,.cue,.toast,.noprint{display:none!important}
+  body{background:#fff;padding:0;font-size:10pt}
+  .card{border:none;padding:0}
+  .ov-wrap{overflow:visible;border:none}
+  table.ov{min-width:0;font-size:8pt}
+  @page{size:A4 landscape;margin:8mm}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="top-row"><h1>生活記録表（1週間）</h1><span class="saved" id="saved" aria-live="polite"></span></div>
+    <ol class="steps" aria-label="進み具合">
+      <li><button type="button" data-step="1">① はじめに</button></li>
+      <li><button type="button" data-step="2">② 記録する</button></li>
+      <li><button type="button" data-step="3">③ 送る</button></li>
+    </ol>
+  </div>
+</header>
+
+<main class="wrap" style="margin-top:14px">
+
+<!-- ========== STEP 1 ========== -->
+<section id="step1" class="step" aria-labelledby="s1h">
+  <div class="card">
+    <h2 id="s1h">はじめに</h2>
+    <p>1週間の生活リズム（睡眠・日中の過ごし方・気分）を記録して、面談で一緒にふり返るためのものです。</p>
+    <p><b>正確でなくて大丈夫です。</b>おおよそで、書ける日だけでも構いません。</p>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <label class="f" for="name">お名前<input type="text" id="name" autocomplete="name" placeholder="例：山田 太郎"></label>
+    <label class="f" for="start">記録をはじめる日<input type="date" id="start"></label>
+    <p class="small muted">はじめる日を選ぶと、7日分の日付と曜日が入ります。</p>
+  </div>
+  <div class="card soft" style="margin-top:16px">
+    <h2 style="font-size:1.1rem">入力した内容の保存について</h2>
+    <ul class="plain">
+      <li>入力した内容は、<b>この端末のブラウザに自動で保存</b>されます。保存ボタンはありません。</li>
+      <li>ブラウザを閉じても、<b>同じ端末・同じブラウザ</b>でこのページを開けば、続きから入力できます。</li>
+      <li>別のスマホやパソコン、別のブラウザで開くと、続きは表示されません。毎日同じ方法で開いてください（ブックマークやホーム画面への追加が便利です）。</li>
+      <li>プライベートブラウズ（シークレットモード）では保存されません。閲覧履歴やWebサイトのデータを消すと、記録も消えます。</li>
+      <li>入力した内容<span class="medonly">（おくすり手帳の写真を含む）</span>はインターネットには送られず、ご本人がメールやLINEで送るまで誰にも見えません。ログインも不要です。</li>
+    </ul>
+  </div>
+  <div class="card warm" id="inapp" hidden style="margin-top:16px">
+    <p><b>LINEなどのアプリの中でこのページを開いています。</b></p>
+    <p>このままだと、続きが保存されないことがあります。画面右上（または右下）のメニューから「<b>ブラウザで開く</b>」「<b>Safariで開く</b>」を選んでから入力してください。</p>
+  </div>
+</section>
+
+<!-- ========== STEP 2 ========== -->
+<section id="step2" class="step" aria-labelledby="s2h" hidden>
+  <h2 id="s2h" class="noprint" style="position:absolute;left:-9999px">記録する</h2>
+  <div class="card">
+    <div class="daystrip" id="days" aria-label="日を選ぶ"></div>
+    <div class="dayttl"><b id="dayTitle"></b><span class="small muted" id="dayCount"></span></div>
+  </div>
+  <div class="card" style="margin-top:16px">
+    <p style="font-weight:700">1. その時間にしていたことを入れる</p>
+    <p class="small muted">記号を選んでから、時間のマスをタップします。なぞると、最初のマスから指を離したマスまでまとめて入ります。</p>
+    <div class="palette" id="palette" role="toolbar" aria-label="記号を選ぶ"></div>
+    <div class="hours" id="hours" aria-label="時間のマス（左上の数字は時刻）"></div>
+    <p class="small muted">マスの左上の数字は時刻です（例：「4」＝4時台）。空いている時間は「特に何もしていない・テレビなど」として扱います。</p>
+    <details class="help"><summary>記号の意味を見る</summary><div class="legend" id="legend"></div></details>
+  </div>
+  <div class="card" style="margin-top:16px" id="moodCard">
+    <p style="font-weight:700">2. 今日の気分</p>
+    <div class="seg mood" id="mood"></div>
+    <p style="font-weight:700;margin-top:6px">3. 今日の活動度</p>
+    <div class="seg act" id="act"></div>
+    <p class="acthint" id="actHint"></p>
+    <details class="help"><summary>活動度の目安を見る</summary><ul class="plain small" id="actScale" style="margin-top:6px"></ul></details>
+    <label class="f" for="comment" style="margin-top:6px">4. ひとこと（体調・出来事など。書かなくても大丈夫です）<textarea id="comment" placeholder="例：夜中に目が覚めた。午後に少し散歩した。"></textarea></label>
+  </div>
+</section>
+
+<!-- ========== STEP 3 ========== -->
+<section id="step3" class="step" aria-labelledby="s3h" hidden>
+  <div class="card">
+    <h2 id="s3h">確認して送る</h2>
+    <div class="prog"><div class="bar"><i id="progBar"></i></div><b id="progTxt"></b></div>
+    <p class="small muted" id="progNote"></p>
+    <div class="ov-wrap"><table class="ov" id="ov"></table></div>
+    <p class="small muted">日付を押すと、その日の記録を直せます。スマホでは表を横にスクロールできます。</p>
+  </div>
+
+  <div class="card" style="margin-top:16px" id="medCard">
+    <h2 style="font-size:1.15rem">おくすり手帳（任意）</h2>
+    <p class="small">おくすり手帳の写真や、おくすり手帳アプリの画面（スクリーンショット）を一緒に送れます。<b>なくても大丈夫です。</b></p>
+    <div class="btns">
+      <button class="btn" type="button" id="medCam">📷 写真を撮る</button>
+      <button class="btn" type="button" id="medPick">写真・ファイルを選ぶ</button>
+    </div>
+    <input type="file" id="medCamIn" accept="image/*" capture="environment" hidden>
+    <input type="file" id="medPickIn" accept="image/*,application/pdf" multiple hidden>
+    <div class="meds" id="meds"></div>
+    <p class="small muted" id="medNote">写真は記録と同じPDFの2ページ目以降に入ります（撮影場所などの情報は取り除かれます）。アプリが書き出したPDFも選べます。</p>
+  </div>
+
+  <div class="card" style="margin-top:16px" id="sendCard">
+    <h2 style="font-size:1.15rem">送り方を選んでください</h2>
+    <p class="small muted">どの方法でも、記録はPDFファイルになって送られます。</p>
+    <div class="toline" id="toLine" hidden>送り先：<b id="toShow"></b> <button class="btn quiet mini" type="button" id="toCopy">コピー</button></div>
+    <div class="choices">
+      <button class="choice" type="button" id="cMail"><span class="ic" aria-hidden="true">✉</span><span><b>メールで送る</b><small>PDFが添付されたメールの下書きが開きます</small></span></button>
+      <button class="choice" type="button" id="cLine"><span class="ic line" aria-hidden="true">L</span><span><b>LINEで送る</b><small>LINEのトークでPDFを送ります</small></span></button>
+      <button class="choice" type="button" id="cOther"><span class="ic" aria-hidden="true">⋯</span><span><b>その他のアプリで送る</b><small>Teams・Slack・Chatworkなど</small></span></button>
+    </div>
+
+    <div class="panel" id="pMail" hidden>
+      <div data-for="share">
+        <p><b>次に開く一覧から、使っているメールアプリを選んでください。</b></p>
+        <p class="small">「メール」「Gmail」「Outlook」などを選ぶと、PDFが添付された下書きが開きます。</p>
+        <p class="small"><b>宛先「<span class="toaddr"></span>」はコピー済みです。</b>下書きの宛先の欄を長押しして「ペースト」を選ぶと入ります（スマホの仕組み上、宛先は自動では入りません）。</p>
+        <div><button class="btn quiet mini" type="button" data-copyto>もう一度コピーする</button></div>
+        <button class="btn primary" type="button" id="mailShareAgain">もう一度一覧を開く</button>
+      </div>
+      <div data-for="pc">
+        <p><b>ふだん、メールはどちらで使っていますか？</b></p>
+        <div class="choices">
+          <button class="choice sub" type="button" id="pcMailApp"><span class="ic" aria-hidden="true">🖥</span><span><b>パソコンのメールアプリ</b><small>Outlook・メールなど。PDFが添付された下書きが自動で開きます。</small></span></button>
+          <button class="choice sub" type="button" id="pcWebmail"><span class="ic" aria-hidden="true">🌐</span><span><b>ブラウザのメール</b><small>Gmail・Yahoo!メール・Outlook（Web版）など。PDFを保存してから添付します。</small></span></button>
+        </div>
+      </div>
+
+      <div id="appBox" hidden>
+        <p><b>PDFが添付された下書きが開きます。</b></p>
+        <ol class="wsteps">
+          <li><b>宛先の欄をクリックして、貼り付けます</b><small>宛先「<span class="toaddr"></span>」はコピー済みです。Ctrl＋V（Macは ⌘＋V）で貼り付けられます。</small><div><button class="btn quiet mini" type="button" data-copyto>もう一度コピーする</button></div></li>
+          <li><b>PDFが添付されていることを確かめて、送信します</b></li>
+        </ol>
+        <p class="small muted">下書きが開かないときは、上の「ブラウザのメール」を選んでください。</p>
+      </div>
+
+      <div id="webmailBox" hidden>
+        <p><b>ブラウザのメールでは、次の4つの手順で送ってください。</b></p>
+        <ol class="wsteps">
+          <li><b>記録をPDFで保存します</b>
+            <div><button class="btn primary" type="button" id="wSave">PDFを保存する</button></div>
+            <small class="ok" id="wSaved" hidden>✓ 保存しました。「ダウンロード」フォルダの「<span class="fname"></span>」です。</small></li>
+          <li><b>メールの作成画面を開きます</b><small>Gmail・Outlookは、宛先と件名が自動で入ります。Yahoo!メールは、宛先がコピーされるので貼り付けてください。</small>
+            <div class="btns" id="wLinks"><a class="btn" id="wGmail" target="_blank" rel="noopener">Gmail</a><a class="btn" id="wOutlook" target="_blank" rel="noopener">Outlook（Web版）</a><a class="btn" id="wYahoo" href="https://mail.yahoo.co.jp/" target="_blank" rel="noopener">Yahoo!メール</a></div></li>
+          <li><b>保存したPDFを添付します</b><small>作成画面のクリップ（📎 添付）マークを押し、「ダウンロード」フォルダの「<span class="fname">生活記録表_….pdf</span>」を選びます。ブラウザのダウンロード表示から、PDFを作成画面へドラッグしても添付できます。</small></li>
+          <li><b>PDFが添付されていることを確かめて、送信します</b></li>
+        </ol>
+        <p class="small extrapdf" hidden><b>おくすり手帳のPDFファイルを追加した場合は、そのファイルも一緒に添付してください。</b></p>
+        <p class="small muted">※ブラウザのメールには、Webページから自動でファイルを添付する仕組みがないため、ご自身で添付していただく必要があります。</p>
+      </div>
+    </div>
+
+    <div class="panel" id="pLine" hidden>
+      <div data-for="share">
+        <p><b>次に開く一覧から「LINE」を選び、送り先のトークを選んで送信してください。</b></p>
+        <p class="small muted">一覧にLINEがない場合は、一覧の右端の「その他」から探してください。</p>
+        <button class="btn primary" type="button" id="lineShareAgain">もう一度一覧を開く</button>
+      </div>
+      <div data-for="pc">
+        <p class="small"><b>PDFを保存しました。</b>パソコン版のLINEで送り先のトークを開き、保存したPDF（「<span class="fname"></span>」）をトークの画面にドラッグして送信してください。</p>
+        <p class="small extrapdf" hidden><b>おくすり手帳のPDFファイルを追加した場合は、そのファイルも一緒に送ってください。</b></p>
+      </div>
+    </div>
+
+    <div class="panel" id="pOther" hidden>
+      <div data-for="share">
+        <p><b>次に開く一覧から、送りたいアプリ（Teams・Slack・Chatworkなど）を選んでください。</b></p>
+        <button class="btn primary" type="button" id="otherShareAgain">もう一度一覧を開く</button>
+      </div>
+      <div data-for="pc">
+        <p class="small"><b>PDFを保存しました。</b>Teams・Slack・Chatworkなどで送り先を開き、保存したPDF（「<span class="fname"></span>」）をドラッグするか、クリップ（＋）マークから選んで送信してください。</p>
+        <p class="small extrapdf" hidden><b>おくすり手帳のPDFファイルを追加した場合は、そのファイルも一緒に送ってください。</b></p>
+      </div>
+    </div>
+
+    <details class="help">
+      <summary>ファイルとして保存する（PDF・画像・Excel）</summary>
+      <div class="btns" style="margin-top:8px"><button class="btn" id="savePdf" type="button">PDFで保存</button><button class="btn" id="savePng" type="button">画像で保存</button><button class="btn" id="saveXlsx" type="button">Excelで保存</button></div>
+    </details>
+    <p class="small"><b>健康に関わる大切な情報です。</b>送り先をよく確認し、グループではなく担当者への個別メッセージ（DM）で送ってください。</p>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <p class="small">送り終わったら、この端末から記録を消しておくと安心です（共用の端末などの場合は特に）。</p>
+    <div><button class="btn danger" id="clear" type="button">記録をすべて消す</button></div>
+    <div class="confirm" id="confirmBox" hidden>
+      <div>この端末に保存されている記録をすべて消します。元には戻せません。よろしいですか？</div>
+      <div class="btns"><button class="btn danger" id="clearYes" type="button">消す</button><button class="btn" id="clearNo" type="button">やめる</button></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<button class="cue" id="cue" type="button" hidden>↓ 下に続きがあります</button>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<nav class="bar" aria-label="次へ進む"><div class="bar-in">
+  <button class="btn back quiet" id="barBack" type="button">← 戻る</button>
+  <button class="btn primary" id="barNext" type="button">次へ</button>
+</div></nav>
+
+<script>
+(function(){
+"use strict";
+var N=7;
+var CODES=[
+  {k:"睡",n:"睡眠",d:"睡眠（夜の睡眠、昼寝・仮眠）",c:"#8EB4E3"},
+  {k:"食",n:"食事",d:"食事",c:"#FFE94F"},
+  {k:"家",n:"家事",d:"家事・身の回りのこと",c:"#FF9F43"},
+  {k:"外",n:"外出",d:"外出（散歩・買物・図書館・通院など）",c:"#A9D08E"},
+  {k:"仕",n:"仕事",d:"会社等での仕事・業務（通勤含む）",c:"#F4B6D2"},
+  {k:"趣",n:"趣味",d:"趣味（ゲーム・読書・音楽・映画など）",c:"#C5A3E0"},
+  {k:"学",n:"学習",d:"学習（勉強・資格の勉強・リワークの課題など）",c:"#C8A27A"},
+  {k:"運",n:"運動",d:"運動（ジム・プール・ジョギング・ストレッチなど）",c:"#7FD8E6"}
+];
+var COLOR={},NAME={}; CODES.forEach(function(x){COLOR[x.k]=x.c;NAME[x.k]=x.n;});
+var ACT=["何もする意欲が無く、家で横になっていることが多い","家の中でゆっくりと安心してすごせる","簡単な家事など、家のことがふつうにできる","短時間の外出などできるが、疲れが翌日に残る","毎日、短時間の外出などができる","（平日は）どこかに通い、何とか課題に取り組める","（平日は）どこかに通い、集中して課題に取り組める"];
+var MOOD={5:"とても良い",4:"良い",3:"ふつう",2:"悪い",1:"とても悪い"};
+var HOURS=[]; for(var i=0;i<24;i++) HOURS.push((4+i)%24);
+var NIGHT={22:1,23:1,0:1,1:1,2:1,3:1};
+var WD=["日","月","火","水","木","金","土"];
+/* ===== 設定（版ごとにここだけ変える） ===== */
+var DEFAULT_TO="y-imushitsu@sanyo-shokai.co.jp";   // 送り先メールアドレス
+var KEY="seikatsu-kiroku-sanyo-v1";                   // 端末に保存するときの名前（版ごとに変える）
+var SHOW_MEDS=false;                             // おくすり手帳の欄を表示する（true）／しない（false）
+/* ======================================== */
+var $=function(id){return document.getElementById(id);};
+
+function blankDay(){return {a:Array(24).fill(""),s:Array(24).fill(false),mood:"",act:"",cm:""};}
+function blank(){var d=[];for(var i=0;i<N;i++)d.push(blankDay());return {name:"",start:"",days:d,ts:0,cur:0};}
+var S=blank(), restored=false;
+try{var raw=localStorage.getItem(KEY); if(raw){var p=JSON.parse(raw); if(p&&p.days&&p.days.length){p.days=p.days.slice(0,N); while(p.days.length<N)p.days.push(blankDay()); S=Object.assign(blank(),p); restored=true;}}}catch(e){}
+var cur=Math.min(Math.max(+S.cur||0,0),N-1), tool="睡", step=1, imgDirty=true;
+
+function hasData(){ if(S.name||S.start) return true; return S.days.some(function(d){return filled(d)>0||d.mood||d.act||d.cm;}); }
+function hhmm(ts){var d=new Date(ts);return (d.getMonth()+1)+"/"+d.getDate()+" "+d.getHours()+":"+String(d.getMinutes()).padStart(2,"0");}
+function save(){
+  imgDirty=true; S.ts=Date.now(); S.cur=cur;
+  var ok=true; try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){ok=false;}
+  $("saved").textContent=ok?"✓ 自動保存 "+hhmm(S.ts):"保存できません（プライベートモード？）";
+  if(ok){$("saved").style.color="";}else{$("saved").style.color="#9B3D33";}
+  updateMail();
+}
+var tT=null; function toast(t,ms){$("toast").textContent=t;clearTimeout(tT);tT=setTimeout(function(){$("toast").textContent="";},ms||6000);}
+
+function dateOf(i){ if(!S.start) return null; var p=S.start.split("-"); if(p.length!==3) return null; var d=new Date(+p[0],+p[1]-1,+p[2]); d.setDate(d.getDate()+i); return d; }
+function label(i){ var d=dateOf(i); if(!d) return (i+1)+"日目"; return (d.getMonth()+1)+"/"+d.getDate()+"（"+WD[d.getDay()]+"）"; }
+function filled(day){var n=0;for(var i=0;i<24;i++) if(day.a[i]||day.s[i]) n++; return n;}
+function dayDone(d){return filled(d)>0||d.mood!==""||d.act!=="";}
+
+/* ---------- steps ---------- */
+function go(n,opts){
+  step=n;
+  [1,2,3].forEach(function(k){$("step"+k).hidden=(k!==n);});
+  document.querySelectorAll(".steps button").forEach(function(b){
+    var k=+b.dataset.step; b.setAttribute("aria-current",k===n?"step":"false"); b.classList.toggle("done",k<n);
+  });
+  if(n===2) renderDay();
+  if(n===3){renderOverview();updateMail();}
+  renderBar();
+  if(!(opts&&opts.keepScroll)) window.scrollTo(0,0);
+  setTimeout(updateCue,60);
+}
+document.querySelector(".steps").addEventListener("click",function(e){var b=e.target.closest("button");if(b)go(+b.dataset.step);});
+function renderBar(){
+  var back=$("barBack"), next=$("barNext");
+  if(step===1){ back.hidden=true; next.textContent=hasData()&&filled(S.days[0])?"記録のつづきへ →":"記録をはじめる →"; }
+  else if(step===2){ back.hidden=false; back.textContent=cur===0?"← はじめに":"← 前の日"; next.textContent=cur<N-1?"次の日（"+label(cur+1)+"）→":"確認して送る →"; }
+  else { back.hidden=false; back.textContent="← 記録に戻る"; next.textContent="送り方を選ぶ ↓"; }
+}
+$("barNext").addEventListener("click",function(){
+  if(step===1){ go(2); }
+  else if(step===2){ if(cur<N-1){cur++;save();go(2);} else go(3); }
+  else { $("sendCard").scrollIntoView({block:"start"}); window.scrollBy(0,-110); }
+});
+$("barBack").addEventListener("click",function(){
+  if(step===2){ if(cur>0){cur--;save();go(2);} else go(1); }
+  else if(step===3){ go(2); }
+});
+
+/* scroll cue */
+function updateCue(){
+  var rest=document.documentElement.scrollHeight-(window.scrollY+window.innerHeight);
+  $("cue").hidden=!(rest>120 && window.scrollY<60);
+}
+window.addEventListener("scroll",updateCue,{passive:true});
+window.addEventListener("resize",updateCue);
+$("cue").addEventListener("click",function(){window.scrollBy({top:Math.round(window.innerHeight*0.6),behavior:"smooth"});});
+
+/* ---------- step 1 ---------- */
+$("name").value=S.name||""; $("start").value=S.start||"";
+$("name").addEventListener("input",function(){S.name=this.value;save();});
+$("start").addEventListener("change",function(){S.start=this.value;save();renderBar();});
+(function(){var ua=navigator.userAgent||""; if(/Line\/|FBAN|FBAV|Instagram|MicroMessenger|KAKAOTALK/i.test(ua)) $("inapp").hidden=false;})();
+
+/* ---------- step 2 ---------- */
+(function(){
+  var h="";
+  CODES.forEach(function(x){h+='<button type="button" class="tool" data-tool="'+x.k+'" aria-pressed="false" aria-label="'+x.n+'"><span class="sw" style="background:'+x.c+'">'+x.k+'</span><span class="nm">'+x.n+'</span></button>';});
+  h+='<button type="button" class="tool" data-tool="★" aria-pressed="false" aria-label="薬を飲んだ（★）"><span class="sw" style="color:var(--star);border:1px solid var(--line)">★</span><span class="nm">服薬</span></button>';
+  h+='<button type="button" class="tool" data-tool="erase" aria-pressed="false" aria-label="消す"><span class="sw" style="border:1px dashed var(--line-strong);font-size:15px">消</span><span class="nm">消す</span></button>';
+  $("palette").innerHTML=h;
+  var lg="";CODES.forEach(function(x){lg+='<div><span class="chip" style="background:'+x.c+'">'+x.k+'</span>'+x.d+'</div>';});
+  lg+='<div><span class="chip" style="color:var(--star)">★</span>薬を飲んだ（他の記号と一緒に付けられます）</div><div><span class="chip" style="font-size:.8em">消</span>入れたものを消す</div>';
+  $("legend").innerHTML=lg;
+  var sc="";ACT.forEach(function(t,i){sc+="<li><b>"+(i+1)+"</b>："+t+"</li>";}); $("actScale").innerHTML=sc;
+})();
+$("palette").addEventListener("click",function(e){var b=e.target.closest(".tool");if(!b)return;tool=b.dataset.tool;markTool();});
+function markTool(){document.querySelectorAll(".tool").forEach(function(b){b.setAttribute("aria-pressed",b.dataset.tool===tool?"true":"false");});}
+markTool();
+function renderDays(){
+  var h="";
+  for(var i=0;i<N;i++){
+    var d=dateOf(i), top=d?String(d.getDate()):String(i+1), w=d?WD[d.getDay()]:"日目";
+    h+='<button type="button" class="day" data-i="'+i+'" aria-current="'+(i===cur)+'" aria-label="'+label(i)+(dayDone(S.days[i])?" 入力あり":"")+'"><span class="d">'+top+'</span><span class="w">'+w+'</span><span class="m">'+(dayDone(S.days[i])?"✓":"")+'</span></button>';
+  }
+  $("days").innerHTML=h;
+}
+$("days").addEventListener("click",function(e){var b=e.target.closest(".day");if(!b)return;cur=+b.dataset.i;save();renderDay();renderBar();});
+function renderDay(){
+  renderDays();
+  var day=S.days[cur],h="";
+  HOURS.forEach(function(hr,idx){
+    var v=day.a[idx];
+    h+='<div class="cell'+(NIGHT[hr]?" night":"")+'" data-x="'+idx+'" style="background-color:'+(v?COLOR[v]:"#fff")+'" role="button" aria-label="'+hr+'時 '+(v?NAME[v]:"空き")+(day.s[idx]?" 服薬":"")+'"><span class="h">'+hr+'</span><span class="v">'+(v||"")+'</span>'+(day.s[idx]?'<span class="s">★</span>':'')+'</div>';
+  });
+  $("hours").innerHTML=h;
+  $("dayTitle").textContent=label(cur);
+  $("dayCount").textContent=(cur+1)+"日目 / "+N+"日";
+  renderSeg();
+}
+var painting=false,starMode=true,lastX=-1,startX=-1,snapA=null,snapS=null,hoursEl=$("hours");
+function drawCell(idx){
+  var day=S.days[cur],el=hoursEl.querySelector('[data-x="'+idx+'"]'),v=day.a[idx];
+  el.style.backgroundColor=v?COLOR[v]:"#fff"; el.querySelector(".v").textContent=v||"";
+  var s=el.querySelector(".s");
+  if(day.s[idx]&&!s){s=document.createElement("span");s.className="s";s.textContent="★";el.appendChild(s);}
+  if(!day.s[idx]&&s) s.remove();
+}
+function applyRange(to){
+  var day=S.days[cur],lo=Math.min(startX,to),hi=Math.max(startX,to);
+  for(var i=0;i<24;i++){
+    var na=snapA[i],ns=snapS[i];
+    if(i>=lo&&i<=hi){ if(tool==="erase"){na="";ns=false;} else if(tool==="★"){ns=starMode;} else na=tool; }
+    if(day.a[i]!==na||day.s[i]!==ns){day.a[i]=na;day.s[i]=ns;drawCell(i);}
+  }
+}
+hoursEl.addEventListener("pointerdown",function(e){
+  var c=e.target.closest(".cell"); if(!c) return;
+  e.preventDefault(); painting=true;
+  var idx=+c.dataset.x,day=S.days[cur];
+  snapA=day.a.slice(); snapS=day.s.slice(); startX=idx; lastX=idx;
+  if(tool==="★") starMode=!day.s[idx];
+  applyRange(idx);
+  try{hoursEl.setPointerCapture(e.pointerId);}catch(_){}
+});
+hoursEl.addEventListener("pointermove",function(e){
+  if(!painting) return;
+  var el=document.elementFromPoint(e.clientX,e.clientY); if(!el) return;
+  var c=el.closest&&el.closest(".cell"); if(!c||!hoursEl.contains(c)) return;
+  var idx=+c.dataset.x; if(idx===lastX) return; lastX=idx; applyRange(idx);
+});
+function endPaint(){ if(!painting) return; painting=false; lastX=-1; save(); renderDays(); }
+hoursEl.addEventListener("pointerup",endPaint);
+hoursEl.addEventListener("pointercancel",endPaint);
+hoursEl.addEventListener("lostpointercapture",endPaint);
+function renderSeg(){
+  var day=S.days[cur],m="",a="";
+  [5,4,3,2,1].forEach(function(v){m+='<button type="button" data-v="'+v+'" aria-pressed="'+(String(day.mood)===String(v))+'">'+v+'<small>'+MOOD[v]+'</small></button>';});
+  for(var v=1;v<=7;v++) a+='<button type="button" data-v="'+v+'" aria-pressed="'+(String(day.act)===String(v))+'" aria-label="活動度 '+v+'：'+ACT[v-1]+'">'+v+'</button>';
+  $("mood").innerHTML=m; $("act").innerHTML=a;
+  $("actHint").textContent=day.act?(day.act+"："+ACT[day.act-1]):"数字を押すと、目安が表示されます。";
+  $("comment").value=day.cm||"";
+}
+$("mood").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;var d=S.days[cur];d.mood=(String(d.mood)===b.dataset.v)?"":+b.dataset.v;save();renderSeg();renderDays();});
+$("act").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;var d=S.days[cur];d.act=(String(d.act)===b.dataset.v)?"":+b.dataset.v;save();renderSeg();renderDays();});
+$("comment").addEventListener("input",function(){S.days[cur].cm=this.value;save();});
+
+/* ---------- step 3 ---------- */
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function renderOverview(){
+  var done=S.days.filter(dayDone).length;
+  $("progBar").style.width=Math.round(done/N*100)+"%";
+  $("progTxt").textContent=done+" / "+N+" 日";
+  $("progNote").textContent=done===N?"7日分そろいました。おつかれさまでした。":"書けていない日があっても、そのまま送って大丈夫です。";
+  var h='<thead><tr><th>月/日（曜）</th>';
+  HOURS.forEach(function(hr){h+='<th>'+hr+'</th>';});
+  h+='<th>気分</th><th>活動度</th><th>ひとこと</th></tr></thead><tbody>';
+  for(var i=0;i<N;i++){
+    var d=S.days[i];
+    h+='<tr><td class="dt" data-i="'+i+'">'+label(i)+'</td>';
+    for(var x=0;x<24;x++){var v=d.a[x];h+='<td class="hc" style="background:'+(v?COLOR[v]:"#fff")+'">'+(v||"")+(d.s[x]?'<i>★</i>':'')+'</td>';}
+    h+='<td>'+(d.mood||"")+'</td><td>'+(d.act||"")+'</td><td class="cm">'+esc(d.cm||"")+'</td></tr>';
+  }
+  $("ov").innerHTML=h+'</tbody>';
+}
+$("ov").addEventListener("click",function(e){var t=e.target.closest("td.dt");if(!t)return;cur=+t.dataset.i;save();go(2);});
+
+/* ---------- export (image / excel) ---------- */
+function fileBase(){var nm=(S.name||"").replace(/[\\\/:*?"<>|\s]/g,"");var d=new Date(),ymd=d.getFullYear()+String(d.getMonth()+1).padStart(2,"0")+String(d.getDate()).padStart(2,"0");return "生活記録表_"+(nm?nm+"_":"")+ymd;}
+function drawCanvas(){
+  var W=2000,cellW=52,dateW=150,moodW=60,actW=70,left=30,top=0;
+  var cmW=W-left*2-dateW-cellW*24-moodW-actW;
+  var rowH=54, headH=56;
+  var H=200+headH+rowH*N+30+150;
+  var cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+  var g=cv.getContext("2d"), F='"BIZ UDPGothic","Hiragino Sans","Meiryo","Noto Sans JP",sans-serif';
+  g.fillStyle="#fff"; g.fillRect(0,0,W,H);
+  g.fillStyle="#1F2933"; g.textBaseline="middle";
+  g.font="bold 44px "+F; g.fillText("生活記録表（1週間）",left,50);
+  g.font="28px "+F;
+  var period=S.start?(label(0)+" 〜 "+label(N-1)):"記録開始日：未入力";
+  g.fillText("氏名："+(S.name||"（未入力）")+"　　期間："+period,left,105);
+  // legend
+  var lx=left, ly=155; g.font="24px "+F;
+  CODES.concat([{k:"★",n:"服薬",c:null}]).forEach(function(x){
+    g.fillStyle=x.c||"#fff"; g.fillRect(lx,ly-18,36,36); g.strokeStyle="#7B8794"; g.lineWidth=1.5; g.strokeRect(lx,ly-18,36,36);
+    g.fillStyle=x.c?"#1F2933":"#C00000"; g.font="bold 24px "+F; g.textAlign="center"; g.fillText(x.k,lx+18,ly+1);
+    g.textAlign="left"; g.fillStyle="#1F2933"; g.font="24px "+F; g.fillText(x.n,lx+44,ly+1); lx+=150;
+  });
+  top=200;
+  function header(y){
+    g.fillStyle="#EEF1F4"; g.fillRect(left,y,W-left*2,headH);
+    g.fillStyle="#1F2933"; g.font="bold 24px "+F; g.textAlign="center";
+    g.fillText("月/日（曜）",left+dateW/2,y+headH/2);
+    HOURS.forEach(function(hr,x){var cx=left+dateW+x*cellW; if(NIGHT[hr]){g.fillStyle="#DDE2E8";g.fillRect(cx,y,cellW,headH);} g.fillStyle="#1F2933"; g.fillText(String(hr),cx+cellW/2,y+headH/2);});
+    var bx=left+dateW+cellW*24;
+    g.fillText("気分",bx+moodW/2,y+headH/2); g.fillText("活動度",bx+moodW+actW/2,y+headH/2); g.fillText("コメント（体調・出来事など）",bx+moodW+actW+cmW/2,y+headH/2);
+    g.textAlign="left";
+  }
+  function wrapText(t,x,y,maxW,maxLines,lh){
+    var lines=[],line=""; for(var i=0;i<t.length;i++){var ch=t[i]; if(ch==="\n"){lines.push(line);line="";continue;} if(g.measureText(line+ch).width>maxW){lines.push(line);line=ch;} else line+=ch;} if(line)lines.push(line);
+    if(lines.length>maxLines){lines=lines.slice(0,maxLines); lines[maxLines-1]=lines[maxLines-1].slice(0,-1)+"…";}
+    var y0=y-(lines.length-1)*lh/2; lines.forEach(function(l,k){g.fillText(l,x,y0+k*lh);});
+  }
+  var y=top;
+  for(var w=0;w<1;w++){
+    header(y); y+=headH;
+    for(var r=0;r<7;r++){
+      var i=w*7+r, d=S.days[i];
+      g.strokeStyle="#9AA5B1"; g.lineWidth=1.5;
+      g.fillStyle="#1F2933"; g.font="bold 24px "+F; g.textAlign="center"; g.fillText(label(i),left+dateW/2,y+rowH/2);
+      g.strokeRect(left,y,dateW,rowH);
+      for(var x=0;x<24;x++){
+        var cx=left+dateW+x*cellW, v=d.a[x];
+        g.fillStyle=v?COLOR[v]:"#fff"; g.fillRect(cx,y,cellW,rowH); g.strokeRect(cx,y,cellW,rowH);
+        if(v){g.fillStyle="#1F2933"; g.font="bold 26px "+F; g.fillText(v,cx+cellW/2,y+rowH/2+(d.s[x]?6:0));}
+        if(d.s[x]){g.fillStyle="#C00000"; g.font="bold 22px "+F; g.fillText("★",cx+cellW-13,y+14);}
+      }
+      var bx=left+dateW+cellW*24;
+      g.fillStyle="#1F2933"; g.font="bold 26px "+F;
+      g.strokeRect(bx,y,moodW,rowH); g.fillText(String(d.mood||""),bx+moodW/2,y+rowH/2);
+      g.strokeRect(bx+moodW,y,actW,rowH); g.fillText(String(d.act||""),bx+moodW+actW/2,y+rowH/2);
+      g.strokeRect(bx+moodW+actW,y,cmW,rowH);
+      g.textAlign="left"; g.font="20px "+F; wrapText(d.cm||"",bx+moodW+actW+8,y+rowH/2,cmW-16,2,24);
+      y+=rowH;
+    }
+    y+=15;
+  }
+  g.textAlign="left"; g.fillStyle="#1F2933"; g.font="22px "+F;
+  g.fillText("気分　5 とても良い　4 良い　3 ふつう　2 悪い　1 とても悪い",left,y+20);
+  g.font="20px "+F;
+  g.fillText("活動度　1 何もする意欲が無く、家で横になっていることが多い　2 家の中でゆっくりと安心してすごせる　3 簡単な家事など、家のことがふつうにできる",left,y+58);
+  g.fillText("　　　　4 短時間の外出などできるが、疲れが翌日に残る　5 毎日、短時間の外出などができる　6 （平日は）どこかに通い、何とか課題に取り組める　7 （平日は）どこかに通い、集中して課題に取り組める",left,y+90);
+  return cv;
+}
+
+function toBlob(cv){return new Promise(function(res){cv.toBlob(function(b){res(b);},"image/png");});}
+function download(blob,name){var url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},4000);}
+function saveImageNow(){var name=fileBase()+".png";try{var url=drawCanvas().toDataURL("image/png"),a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();imgDirty=false;return name;}catch(e){toast("画像の保存に失敗しました。もう一度お試しください。");return null;}}
+$("savePng").addEventListener("click",function(){var n=saveImageNow();if(n)toast("画像を保存しました（"+n+"）。メールやチャットのクリップ（＋）マークから添付できます。",8000);});
+/* minimal .xlsx writer (no external library): stored ZIP + SpreadsheetML with colored cells */
+var CRC_T=(function(){var t=[],c;for(var n=0;n<256;n++){c=n;for(var k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0;}return t;})();
+function crc32(u){var c=0xFFFFFFFF;for(var i=0;i<u.length;i++)c=CRC_T[(c^u[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function zip(files){
+  var enc=new TextEncoder(),parts=[],central=[],off=0;
+  function u16(v){return [v&255,(v>>>8)&255];} function u32(v){return [v&255,(v>>>8)&255,(v>>>16)&255,(v>>>24)&255];}
+  files.forEach(function(f){
+    var name=enc.encode(f.name),data=enc.encode(f.data),crc=crc32(data);
+    var lh=[].concat(u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0));
+    parts.push(new Uint8Array(lh),name,data);
+    var ch=[].concat(u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(name.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(off));
+    central.push(new Uint8Array(ch),name);
+    off+=lh.length+name.length+data.length;
+  });
+  var csize=central.reduce(function(a,b){return a+b.length;},0);
+  var end=new Uint8Array([].concat(u32(0x06054b50),u16(0),u16(0),u16(files.length),u16(files.length),u32(csize),u32(off),u16(0)));
+  return new Blob(parts.concat(central,[end]),{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+}
+function xesc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];}).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,"");}
+function colName(n){var s="";n++;while(n>0){var m=(n-1)%26;s=String.fromCharCode(65+m)+s;n=Math.floor((n-1)/26);}return s;}
+function buildXlsx(){
+  // styles: 0 default, 1 bold, 2 bordered center, 3 header gray, 4.. code fills, last: wrap-left bordered
+  var fills='<fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEEF1F4"/></patternFill></fill>';
+  CODES.forEach(function(x){fills+='<fill><patternFill patternType="solid"><fgColor rgb="FF'+x.c.slice(1)+'"/></patternFill></fill>';});
+  var nF=3+CODES.length;
+  var bd='<border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FF9AA5B1"/></left><right style="thin"><color rgb="FF9AA5B1"/></right><top style="thin"><color rgb="FF9AA5B1"/></top><bottom style="thin"><color rgb="FF9AA5B1"/></bottom><diagonal/></border>';
+  var xf='<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
+    '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>'+
+    '<xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>';
+  CODES.forEach(function(x,i){xf+='<xf numFmtId="0" fontId="1" fillId="'+(3+i)+'" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>';});
+  var WRAP=4+CODES.length;
+  xf+='<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>';
+  var TITLE=WRAP+1;
+  xf+='<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>';
+  var styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+    '<fonts count="3"><font><sz val="11"/><name val="Meiryo"/></font><font><b/><sz val="11"/><name val="Meiryo"/></font><font><b/><sz val="16"/><name val="Meiryo"/></font></fonts>'+
+    '<fills count="'+nF+'">'+fills+'</fills><borders count="2">'+bd+'</borders>'+
+    '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
+    '<cellXfs count="'+(TITLE+1)+'">'+xf+'</cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  var codeStyle={}; CODES.forEach(function(x,i){codeStyle[x.k]=4+i;});
+  var rows=[], rn=0;
+  function row(cells,ht){rn++;var h='<row r="'+rn+'"'+(ht?' ht="'+ht+'" customHeight="1"':'')+'>';cells.forEach(function(c,i){if(c==null)return;var ref=colName(i)+rn;var st=c.s||0;if(c.v===""||c.v==null){h+='<c r="'+ref+'" s="'+st+'"/>';}else if(typeof c.v==="number"){h+='<c r="'+ref+'" s="'+st+'"><v>'+c.v+'</v></c>';}else{h+='<c r="'+ref+'" s="'+st+'" t="inlineStr"><is><t xml:space="preserve">'+xesc(c.v)+'</t></is></c>';}});rows.push(h+'</row>');}
+  row([{v:"生活記録表（1週間）",s:TITLE}],26);
+  row([{v:"氏名",s:1},{v:S.name||""}]);
+  row([{v:"期間",s:1},{v:S.start?(label(0)+" 〜 "+label(N-1)):""}]);
+  rn++;
+  function head(){row([{v:"月/日（曜）",s:3}].concat(HOURS.map(function(h){return {v:h,s:3};})).concat([{v:"気分",s:3},{v:"活動度",s:3},{v:"コメント",s:3}]),24);}
+  for(var w=0;w<1;w++){
+    head();
+    for(var r=0;r<7;r++){var i=w*7+r,d=S.days[i];
+      row([{v:label(i),s:2}].concat(d.a.map(function(v,x){var t=(v||"")+(d.s[x]?"★":"");return {v:t,s:v?codeStyle[v]:2};})).concat([{v:d.mood===""?"":+d.mood,s:2},{v:d.act===""?"":+d.act,s:2},{v:d.cm||"",s:WRAP}]),30);}
+    rn++;
+  }
+  row([{v:"記号："+CODES.map(function(x){return x.k+"＝"+x.n;}).join("　")+"　★＝服薬"}]);
+  row([{v:"気分：5 とても良い　4 良い　3 ふつう　2 悪い　1 とても悪い"}]);
+  [[0,3],[3,5],[5,7]].forEach(function(r,k){row([{v:(k?"　　　　":"活動度：")+ACT.slice(r[0],r[1]).map(function(t,i){return (r[0]+i+1)+" "+t;}).join("　")}]);});
+  var cols='<cols><col min="1" max="1" width="13" customWidth="1"/><col min="2" max="25" width="4.6" customWidth="1"/><col min="26" max="27" width="6.5" customWidth="1"/><col min="28" max="28" width="45" customWidth="1"/></cols>';
+  var sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr><sheetViews><sheetView workbookViewId="0"/></sheetViews>'+cols+'<sheetData>'+rows.join("")+'</sheetData><pageMargins left="0.3" right="0.3" top="0.4" bottom="0.4" header="0.2" footer="0.2"/><pageSetup paperSize="9" orientation="landscape" fitToWidth="1" fitToHeight="1"/></worksheet>';
+  return zip([
+    {name:"[Content_Types].xml",data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'},
+    {name:"_rels/.rels",data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'},
+    {name:"xl/workbook.xml",data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="生活記録表" sheetId="1" r:id="rId1"/></sheets></workbook>'},
+    {name:"xl/_rels/workbook.xml.rels",data:'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'},
+    {name:"xl/styles.xml",data:styles},
+    {name:"xl/worksheets/sheet1.xml",data:sheet}
+  ]);
+}
+
+$("saveXlsx").addEventListener("click",function(){var b;try{b=buildXlsx();}catch(err){toast("Excelの作成に失敗しました。「画像で保存」をお使いください。");return;}download(b,fileBase()+".xlsx");toast("Excelファイルを保存しました（"+fileBase()+".xlsx）。",8000);});
+/* ---------- PDF (no library): record page (A4 landscape) + medication photos (one per page) ---------- */
+function jpegBytes(dataUrl){var bin=atob(dataUrl.split(",")[1]),u=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)u[i]=bin.charCodeAt(i);return u;}
+function makePdfBlob(){
+  var cv=drawCanvas(), pages=[{jpg:jpegBytes(cv.toDataURL("image/jpeg",0.92)),W:cv.width,H:cv.height,PW:842,PH:595,top:true}];
+  MEDS.forEach(function(m){ if(m.kind==="img"){ var land=m.w>m.h; pages.push({jpg:jpegBytes(m.data),W:m.w,H:m.h,PW:land?842:595,PH:land?595:842,top:false}); } });
+  var enc=new TextEncoder(), chunks=[], off=0, offs=[];
+  function put(x){var u=typeof x==="string"?enc.encode(x):x; chunks.push(u); off+=u.length;}
+  function obj(n,body){offs[n]=off; put(n+" 0 obj\n"); if(typeof body==="string") put(body); else body(); put("\nendobj\n");}
+  put("%PDF-1.4\n%âãÏÓ\n");
+  obj(1,"<< /Type /Catalog /Pages 2 0 R >>");
+  var kids=pages.map(function(_,k){return (3+3*k)+" 0 R";}).join(" ");
+  obj(2,"<< /Type /Pages /Kids ["+kids+"] /Count "+pages.length+" >>");
+  pages.forEach(function(p,k){
+    var po=3+3*k, co=po+1, io=po+2, M=p.top?20:24, sc=Math.min((p.PW-2*M)/p.W,(p.PH-2*M)/p.H);
+    var dw=p.W*sc, dh=p.H*sc, x=(p.PW-dw)/2, y=p.top?(p.PH-M-dh):(p.PH-dh)/2;
+    obj(po,"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 "+p.PW+" "+p.PH+"] /Resources << /XObject << /Im"+k+" "+io+" 0 R >> >> /Contents "+co+" 0 R >>");
+    var cs="q "+dw.toFixed(2)+" 0 0 "+dh.toFixed(2)+" "+x.toFixed(2)+" "+y.toFixed(2)+" cm /Im"+k+" Do Q";
+    obj(co,"<< /Length "+cs.length+" >>\nstream\n"+cs+"\nendstream");
+    obj(io,function(){put("<< /Type /XObject /Subtype /Image /Width "+p.W+" /Height "+p.H+" /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length "+p.jpg.length+" >>\nstream\n"); put(p.jpg); put("\nendstream");});
+  });
+  var total=3+3*pages.length, xref=off, t="xref\n0 "+total+"\n0000000000 65535 f \n";
+  for(var n=1;n<total;n++) t+=String(offs[n]).padStart(10,"0")+" 00000 n \n";
+  put(t+"trailer\n<< /Size "+total+" /Root 1 0 R >>\nstartxref\n"+xref+"\n%%EOF\n");
+  return new Blob(chunks,{type:"application/pdf"});
+}
+
+/* ---------- medication notebook photos / files ---------- */
+var MEDS=[], MAXMEDS=SHOW_MEDS?8:0;
+if(SHOW_MEDS) try{ var mr=localStorage.getItem(KEY+"-meds"); if(mr){ MEDS=JSON.parse(mr).filter(function(m){return m&&m.kind==="img"&&m.data;}); } }catch(e){}
+function saveMeds(){
+  try{ localStorage.setItem(KEY+"-meds",JSON.stringify(MEDS.filter(function(m){return m.kind==="img";}))); return true; }
+  catch(e){ return false; }
+}
+function renderMeds(){
+  if(!$("meds")){ document.querySelectorAll(".extrapdf").forEach(function(e){e.hidden=true;}); return; }
+  var h="";
+  MEDS.forEach(function(m,i){
+    h+='<div class="med">'+(m.kind==="img"?'<img src="'+m.data+'" alt="おくすり手帳の写真 '+(i+1)+'">':'<div class="pdf">PDF</div>')+
+       '<span class="nm">'+esc(m.name||("写真"+(i+1)))+'</span><button type="button" data-del="'+i+'">削除</button></div>';
+  });
+  $("meds").innerHTML=h;
+  var hasPdf=MEDS.some(function(m){return m.kind==="pdf";});
+  document.querySelectorAll(".extrapdf").forEach(function(e){e.hidden=!hasPdf;});
+  $("medCam").hidden=!COARSE;
+}
+function loadImage(file){
+  return new Promise(function(res,rej){
+    if(window.createImageBitmap){ createImageBitmap(file,{imageOrientation:"from-image"}).then(res,function(){fallback();}); } else fallback();
+    function fallback(){ var u=URL.createObjectURL(file), im=new Image(); im.onload=function(){res(im);}; im.onerror=function(){URL.revokeObjectURL(u);rej();}; im.src=u; }
+  });
+}
+function addMedFiles(list){
+  var files=Array.prototype.slice.call(list||[]); if(!files.length) return;
+  var room=MAXMEDS-MEDS.length; if(room<=0){toast("追加できるのは"+MAXMEDS+"件までです。");return;}
+  files=files.slice(0,room);
+  var jobs=files.map(function(f){
+    if(f.type==="application/pdf"||/\.pdf$/i.test(f.name)) return Promise.resolve({kind:"pdf",file:f,name:f.name});
+    return loadImage(f).then(function(im){
+      var w=im.width,h=im.height,sc=Math.min(1,1600/Math.max(w,h)); w=Math.round(w*sc); h=Math.round(h*sc);
+      var c=document.createElement("canvas"); c.width=w; c.height=h; var g=c.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,w,h); g.drawImage(im,0,0,w,h);
+      return {kind:"img",data:c.toDataURL("image/jpeg",0.82),w:w,h:h,name:f.name||"写真"};
+    }).catch(function(){ toast("読み込めない形式の写真がありました。スクリーンショットか、JPEG・PNGの写真を選んでください。",9000); return null; });
+  });
+  Promise.all(jobs).then(function(items){
+    items.forEach(function(it){ if(it) MEDS.push(it); });
+    var ok=saveMeds(); renderMeds(); imgDirty=true;
+    var n=items.filter(Boolean).length;
+    if(n) toast(ok?"おくすり手帳を"+n+"件追加しました。":"追加しました。ただし容量の都合で端末には保存できないため、このまま送ってください（画面を閉じると消えます）。",8000);
+  });
+}
+$("medCam").addEventListener("click",function(){$("medCamIn").click();});
+$("medPick").addEventListener("click",function(){$("medPickIn").click();});
+$("medCamIn").addEventListener("change",function(){addMedFiles(this.files);this.value="";});
+$("medPickIn").addEventListener("change",function(){addMedFiles(this.files);this.value="";});
+$("meds").addEventListener("click",function(e){var b=e.target.closest("[data-del]");if(!b)return;MEDS.splice(+b.dataset.del,1);saveMeds();renderMeds();toast("削除しました。");});
+function pdfName(){return fileBase()+".pdf";}
+function savePdf(){ try{ download(makePdfBlob(),pdfName()); document.querySelectorAll(".fname").forEach(function(e){e.textContent=pdfName();}); return true; }catch(e){ toast("PDFの作成に失敗しました。「画像で保存」をお試しください。"); return false; } }
+$("savePdf").addEventListener("click",function(){ if(savePdf()) toast("PDFを保存しました（"+pdfName()+"）。",8000); });
+
+/* ---------- send: mail / LINE / other ---------- */
+var COARSE=false; try{COARSE=window.matchMedia("(pointer: coarse)").matches;}catch(e){}
+function canShareFiles(){ try{ return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([new Blob(["x"],{type:"application/pdf"})],"t.pdf",{type:"application/pdf"})]})); }catch(e){return false;} }
+var MOBILE_SHARE=COARSE&&canShareFiles();
+function subject(){return "【生活記録表】"+(S.name||"")+(S.start?"（"+label(0)+"〜"+label(N-1)+"）":"");}
+function bodyMain(){return "生活記録表"+(S.start?"（"+label(0)+"〜"+label(N-1)+"）":"")+"を提出します。PDFを添付しました。"+(S.name?"\n"+S.name:"");}
+var LINE_="━━━━━━━━━━━━━━━━";
+/* メールアプリ（共有）用：宛先が自動で入らないため、本文の先頭で宛先を案内 */
+function bodyApp(){return LINE_+"\n【送信前のお願い】\n宛先の欄に、次のメールアドレスを入力してから送信してください。\n宛先："+toAddr()+"\n（この案内は消してから送っても構いません）\n"+LINE_+"\n\n"+bodyMain();}
+/* ブラウザのメール用：PDFが自動で添付されないため、本文の先頭で添付を案内 */
+function bodyWeb(){return LINE_+"\n【送信前のお願い】\n保存した生活記録表のPDF（"+pdfName()+"）を、このメールに添付してから送信してください。\n（添付は、作成画面のクリップ（添付）マークから行えます。この案内は消してから送っても構いません）\n"+LINE_+"\n\n"+bodyMain();}
+function sharePdf(kind){
+  var f; try{ f=new File([makePdfBlob()],pdfName(),{type:"application/pdf"}); }catch(e){ toast("PDFの作成に失敗しました。"); return; }
+  var files=[f].concat(MEDS.filter(function(m){return m.kind==="pdf";}).map(function(m){return m.file;}));
+  if(files.length>1&&!(navigator.canShare&&navigator.canShare({files:files}))){ files=[f]; toast("おくすり手帳のPDFは一緒に送れなかったため、別に送ってください。",8000); }
+  var data={files:files,title:subject()}; if(kind==="mail") data.text=bodyApp();
+  navigator.share(data).then(function(){
+    toast(kind==="line"?"LINEで送信できたら完了です。":"送信できたら完了です。おつかれさまでした。",7000);
+  }).catch(function(err){
+    if(err&&err.name==="AbortError") return;
+    if(savePdf()) toast("一覧を開けなかったため、PDFを保存しました。保存したPDFを添付して送ってください。",9000);
+  });
+}
+function openPanel(id){
+  ["pMail","pLine","pOther"].forEach(function(p){$(p).hidden=(p!==id);});
+  ["cMail","cLine","cOther"].forEach(function(c){$(c).setAttribute("aria-expanded",String("p"+c.slice(1)===id));});
+  var mode=MOBILE_SHARE?"share":"pc";
+  $(id).querySelectorAll("[data-for]").forEach(function(d){d.hidden=(d.dataset.for!==mode);});
+  if(id!=="pMail"){ $("webmailBox").hidden=true; $("appBox").hidden=true; }
+}
+$("cMail").addEventListener("click",function(){ openPanel("pMail"); if(MOBILE_SHARE){ copyTo(true); sharePdf("mail"); } else { $("webmailBox").hidden=true; $("appBox").hidden=true; $("pMail").scrollIntoView({block:"nearest"}); } });
+$("cLine").addEventListener("click",function(){ openPanel("pLine"); if(MOBILE_SHARE) sharePdf("line"); else savePdf(); });
+$("cOther").addEventListener("click",function(){ openPanel("pOther"); if(MOBILE_SHARE) sharePdf("other"); else savePdf(); });
+$("mailShareAgain").addEventListener("click",function(){copyTo(true);sharePdf("mail");});
+$("lineShareAgain").addEventListener("click",function(){sharePdf("line");});
+$("otherShareAgain").addEventListener("click",function(){sharePdf("other");});
+function copyTo(quiet){
+  var t=toAddr(); if(!t) return;
+  try{ if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){ if(!quiet) toast("宛先「"+t+"」をコピーしました。宛先の欄に貼り付けてください。",8000); },function(){ if(!quiet) toast("宛先："+t,9000); }); else if(!quiet) toast("宛先："+t,9000); }catch(e){}
+}
+function markSaved(){ $("wSaved").hidden=false; document.querySelectorAll(".fname").forEach(function(e){e.textContent=pdfName();}); }
+$("pcMailApp").addEventListener("click",function(){
+  $("pcMailApp").setAttribute("aria-expanded","true"); $("pcWebmail").setAttribute("aria-expanded","false");
+  copyTo(true);
+  $("webmailBox").hidden=true;
+  if(canShareFiles()){ $("appBox").hidden=false; sharePdf("mail"); toast("宛先をコピーしました。開いた下書きの宛先の欄に貼り付けてください。",9000); }
+  else { $("appBox").hidden=true; $("webmailBox").hidden=false; updateWebmail(); toast("このパソコンでは、メールアプリに自動で添付できませんでした。下の手順で送ってください。",9000); $("webmailBox").scrollIntoView({block:"nearest"}); }
+});
+$("pcWebmail").addEventListener("click",function(){
+  $("pcWebmail").setAttribute("aria-expanded","true"); $("pcMailApp").setAttribute("aria-expanded","false");
+  $("appBox").hidden=true; $("webmailBox").hidden=false; $("wSaved").hidden=imgDirty; updateWebmail();
+  $("webmailBox").scrollIntoView({block:"nearest"});
+});
+$("wSave").addEventListener("click",function(){ if(savePdf()){ imgDirty=false; markSaved(); toast("PDFを保存しました。次に②でメールの作成画面を開いてください。",8000); } });
+$("wLinks").addEventListener("click",function(e){
+  var a=e.target.closest("a"); if(!a) return;
+  if(imgDirty){ if(savePdf()){ imgDirty=false; markSaved(); } }
+  if(a.id==="wYahoo"){ copyTo(true); toast("宛先をコピーしました。Yahoo!メールで「メール作成」を押し、宛先に貼り付けてから、③のPDFを添付してください。",10000); }
+  else toast("作成画面を開きました。③の手順で、保存したPDFを添付してから送信してください。",10000);
+});
+var QUERY_TO="";
+try{QUERY_TO=(new URLSearchParams(location.search).get("to")||"").trim();}catch(e){}
+function toAddr(){return (QUERY_TO||DEFAULT_TO).trim();}
+function updateWebmail(){
+  var e=encodeURIComponent, to=toAddr();
+  $("wGmail").href="https://mail.google.com/mail/?view=cm&fs=1&to="+e(to)+"&su="+e(subject())+"&body="+e(bodyWeb());
+  $("wOutlook").href="https://outlook.office.com/mail/deeplink/compose?to="+e(to)+"&subject="+e(subject())+"&body="+e(bodyWeb());
+}
+function updateMail(){ if(!$("wGmail")) return; updateWebmail(); $("toLine").hidden=!toAddr(); $("toShow").textContent=toAddr(); document.querySelectorAll(".toaddr").forEach(function(e){e.textContent=toAddr();}); }
+document.addEventListener("click",function(e){ if(e.target.closest("[data-copyto]")) $("toCopy").click(); });
+$("toCopy").addEventListener("click",function(){
+  var t=toAddr();
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){toast("送り先のアドレスをコピーしました。宛先の欄に貼り付けてください。");},function(){toast("送り先："+t);});}
+  else toast("送り先："+t,9000);
+});
+if(S.to) delete S.to; /* 以前の版で端末に保存された送り先は使わない */
+$("clear").addEventListener("click",function(){$("confirmBox").hidden=false;});
+$("clearNo").addEventListener("click",function(){$("confirmBox").hidden=true;});
+$("clearYes").addEventListener("click",function(){MEDS=[];try{localStorage.removeItem(KEY+"-meds");}catch(e){}renderMeds();S=blank();cur=0;save();$("name").value="";$("start").value="";$("confirmBox").hidden=true;toast("記録を消しました。");go(1);});
+
+/* ---------- start ---------- */
+if(!SHOW_MEDS){ $("medCard").remove(); document.querySelectorAll(".medonly").forEach(function(e){e.remove();}); try{localStorage.removeItem(KEY+"-meds");}catch(e){} }
+renderMeds();
+updateMail();
+if(restored&&hasData()){
+  if(S.ts) $("saved").textContent="✓ 自動保存 "+hhmm(S.ts);
+  go(2);
+  toast("前回の続きから再開しました"+(S.ts?"（最後に保存："+hhmm(S.ts)+"）":"")+"。",6000);
+} else go(1);
+})();
+</script>
+</body>
+</html>
