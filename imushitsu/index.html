@@ -188,7 +188,7 @@ ol.wsteps .btns{margin-top:4px}
       <li>ブラウザを閉じても、<b>同じ端末・同じブラウザ</b>でこのページを開けば、続きから入力できます。</li>
       <li>別のスマホやパソコン、別のブラウザで開くと、続きは表示されません。毎日同じ方法で開いてください（ブックマークやホーム画面への追加が便利です）。</li>
       <li>プライベートブラウズ（シークレットモード）では保存されません。閲覧履歴やWebサイトのデータを消すと、記録も消えます。</li>
-      <li>入力した内容（おくすり手帳の写真を含む）はインターネットには送られず、ご本人がメールやLINEで送るまで誰にも見えません。ログインも不要です。</li>
+      <li>入力した内容<span class="medonly">（おくすり手帳の写真を含む）</span>はインターネットには送られず、ご本人がメールやLINEで送るまで誰にも見えません。ログインも不要です。</li>
     </ul>
   </div>
   <div class="card warm" id="inapp" hidden style="margin-top:16px">
@@ -368,6 +368,7 @@ var WD=["日","月","火","水","木","金","土"];
 /* ===== 設定（版ごとにここだけ変える） ===== */
 var DEFAULT_TO="y-imushitsu@sanyo-shokai.co.jp";   // 送り先メールアドレス
 var KEY="seikatsu-kiroku-sanyo-v1";                   // 端末に保存するときの名前（版ごとに変える）
+var SHOW_MEDS=false;                             // おくすり手帳の欄を表示する（true）／しない（false）
 /* ======================================== */
 var $=function(id){return document.getElementById(id);};
 
@@ -711,13 +712,14 @@ function makePdfBlob(){
 }
 
 /* ---------- medication notebook photos / files ---------- */
-var MEDS=[], MAXMEDS=8;
-try{ var mr=localStorage.getItem(KEY+"-meds"); if(mr){ MEDS=JSON.parse(mr).filter(function(m){return m&&m.kind==="img"&&m.data;}); } }catch(e){}
+var MEDS=[], MAXMEDS=SHOW_MEDS?8:0;
+if(SHOW_MEDS) try{ var mr=localStorage.getItem(KEY+"-meds"); if(mr){ MEDS=JSON.parse(mr).filter(function(m){return m&&m.kind==="img"&&m.data;}); } }catch(e){}
 function saveMeds(){
   try{ localStorage.setItem(KEY+"-meds",JSON.stringify(MEDS.filter(function(m){return m.kind==="img";}))); return true; }
   catch(e){ return false; }
 }
 function renderMeds(){
+  if(!$("meds")){ document.querySelectorAll(".extrapdf").forEach(function(e){e.hidden=true;}); return; }
   var h="";
   MEDS.forEach(function(m,i){
     h+='<div class="med">'+(m.kind==="img"?'<img src="'+m.data+'" alt="おくすり手帳の写真 '+(i+1)+'">':'<div class="pdf">PDF</div>')+
@@ -843,6 +845,7 @@ $("clearNo").addEventListener("click",function(){$("confirmBox").hidden=true;});
 $("clearYes").addEventListener("click",function(){MEDS=[];try{localStorage.removeItem(KEY+"-meds");}catch(e){}renderMeds();S=blank();cur=0;save();$("name").value="";$("start").value="";$("confirmBox").hidden=true;toast("記録を消しました。");go(1);});
 
 /* ---------- start ---------- */
+if(!SHOW_MEDS){ $("medCard").remove(); document.querySelectorAll(".medonly").forEach(function(e){e.remove();}); try{localStorage.removeItem(KEY+"-meds");}catch(e){} }
 renderMeds();
 updateMail();
 if(restored&&hasData()){
