@@ -767,12 +767,17 @@ var COARSE=false; try{COARSE=window.matchMedia("(pointer: coarse)").matches;}cat
 function canShareFiles(){ try{ return !!(navigator.share&&navigator.canShare&&navigator.canShare({files:[new File([new Blob(["x"],{type:"application/pdf"})],"t.pdf",{type:"application/pdf"})]})); }catch(e){return false;} }
 var MOBILE_SHARE=COARSE&&canShareFiles();
 function subject(){return "【生活記録表】"+(S.name||"")+(S.start?"（"+label(0)+"〜"+label(N-1)+"）":"");}
-function bodyText(){return "生活記録表"+(S.start?"（"+label(0)+"〜"+label(N-1)+"）":"")+"を提出します。PDFを添付しました。"+(S.name?"\n"+S.name:"");}
+function bodyMain(){return "生活記録表"+(S.start?"（"+label(0)+"〜"+label(N-1)+"）":"")+"を提出します。PDFを添付しました。"+(S.name?"\n"+S.name:"");}
+var LINE_="━━━━━━━━━━━━━━━━";
+/* メールアプリ（共有）用：宛先が自動で入らないため、本文の先頭で宛先を案内 */
+function bodyApp(){return LINE_+"\n【送信前のお願い】\n宛先の欄に、次のメールアドレスを入力してから送信してください。\n宛先："+toAddr()+"\n（この案内は消してから送っても構いません）\n"+LINE_+"\n\n"+bodyMain();}
+/* ブラウザのメール用：PDFが自動で添付されないため、本文の先頭で添付を案内 */
+function bodyWeb(){return LINE_+"\n【送信前のお願い】\n保存した生活記録表のPDF（"+pdfName()+"）を、このメールに添付してから送信してください。\n（添付は、作成画面のクリップ（添付）マークから行えます。この案内は消してから送っても構いません）\n"+LINE_+"\n\n"+bodyMain();}
 function sharePdf(kind){
   var f; try{ f=new File([makePdfBlob()],pdfName(),{type:"application/pdf"}); }catch(e){ toast("PDFの作成に失敗しました。"); return; }
   var files=[f].concat(MEDS.filter(function(m){return m.kind==="pdf";}).map(function(m){return m.file;}));
   if(files.length>1&&!(navigator.canShare&&navigator.canShare({files:files}))){ files=[f]; toast("おくすり手帳のPDFは一緒に送れなかったため、別に送ってください。",8000); }
-  var data={files:files,title:subject()}; if(kind==="mail") data.text=bodyText();
+  var data={files:files,title:subject()}; if(kind==="mail") data.text=bodyApp();
   navigator.share(data).then(function(){
     toast(kind==="line"?"LINEで送信できたら完了です。":"送信できたら完了です。おつかれさまでした。",7000);
   }).catch(function(err){
@@ -822,8 +827,8 @@ try{QUERY_TO=(new URLSearchParams(location.search).get("to")||"").trim();}catch(
 function toAddr(){return (QUERY_TO||DEFAULT_TO).trim();}
 function updateWebmail(){
   var e=encodeURIComponent, to=toAddr();
-  $("wGmail").href="https://mail.google.com/mail/?view=cm&fs=1&to="+e(to)+"&su="+e(subject())+"&body="+e(bodyText());
-  $("wOutlook").href="https://outlook.office.com/mail/deeplink/compose?to="+e(to)+"&subject="+e(subject())+"&body="+e(bodyText());
+  $("wGmail").href="https://mail.google.com/mail/?view=cm&fs=1&to="+e(to)+"&su="+e(subject())+"&body="+e(bodyWeb());
+  $("wOutlook").href="https://outlook.office.com/mail/deeplink/compose?to="+e(to)+"&subject="+e(subject())+"&body="+e(bodyWeb());
 }
 function updateMail(){ if(!$("wGmail")) return; updateWebmail(); $("toLine").hidden=!toAddr(); $("toShow").textContent=toAddr(); document.querySelectorAll(".toaddr").forEach(function(e){e.textContent=toAddr();}); }
 document.addEventListener("click",function(e){ if(e.target.closest("[data-copyto]")) $("toCopy").click(); });
